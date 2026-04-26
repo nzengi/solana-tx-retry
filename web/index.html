@@ -1,0 +1,888 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>solana-tx-retry — Reliable Solana Transaction Delivery</title>
+  <style>
+    :root {
+      --sol-purple: #9945FF;
+      --sol-green:  #14F195;
+      --sol-blue:   #00C2FF;
+      --bg:         #0a0a0f;
+      --bg2:        #111118;
+      --bg3:        #1a1a26;
+      --border:     rgba(153,69,255,0.2);
+      --text:       #e8e8f0;
+      --muted:      #888899;
+      --font-mono:  'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NAVBAR ── */
+    nav {
+      position: fixed; top: 0; width: 100%; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--sol-purple), var(--sol-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; gap: 2rem; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--sol-green); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; text-align: center;
+      padding: 8rem 2rem 4rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-glow {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -60%);
+      width: 700px; height: 700px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(153,69,255,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .35rem .9rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      color: var(--sol-green);
+      margin-bottom: 1.5rem;
+      background: rgba(20,241,149,0.06);
+    }
+    .hero-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--sol-green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.5rem;
+    }
+    h1 .grad {
+      background: linear-gradient(135deg, var(--sol-purple) 0%, var(--sol-blue) 50%, var(--sol-green) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: 1.2rem;
+      color: var(--muted);
+      max-width: 600px;
+      margin-bottom: 2.5rem;
+    }
+    .hero-buttons { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .75rem 1.75rem;
+      border-radius: 8px;
+      font-size: .9rem; font-weight: 600;
+      text-decoration: none;
+      transition: all .2s;
+      cursor: pointer; border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--sol-purple), var(--sol-blue));
+      color: #fff;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(153,69,255,.4); }
+    .btn-outline {
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: transparent;
+    }
+    .btn-outline:hover { border-color: var(--sol-green); color: var(--sol-green); }
+
+    /* ── LIVE TX BANNER ── */
+    .live-tx {
+      margin-top: 3.5rem;
+      padding: 1rem 1.5rem;
+      background: rgba(20,241,149,0.06);
+      border: 1px solid rgba(20,241,149,0.25);
+      border-radius: 10px;
+      max-width: 700px;
+      width: 100%;
+      text-align: left;
+    }
+    .live-tx-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: .1em;
+      color: var(--sol-green); text-transform: uppercase; margin-bottom: .5rem;
+    }
+    .live-tx-sig {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .live-tx-sig a { color: var(--sol-blue); text-decoration: none; }
+    .live-tx-sig a:hover { text-decoration: underline; }
+    .live-tx-stats {
+      display: flex; gap: 2rem; margin-top: .75rem; flex-wrap: wrap;
+    }
+    .live-stat { font-size: .8rem; }
+    .live-stat .lv { color: var(--sol-green); font-weight: 700; font-family: var(--font-mono); }
+    .live-stat .lk { color: var(--muted); }
+
+    /* ── SECTIONS ── */
+    section { padding: 6rem 2rem; max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: .75rem; font-weight: 700; letter-spacing: .15em;
+      color: var(--sol-purple); text-transform: uppercase; margin-bottom: 1rem;
+    }
+    h2 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800; letter-spacing: -0.02em; margin-bottom: 1rem;
+    }
+    .section-sub { color: var(--muted); font-size: 1.05rem; max-width: 600px; margin-bottom: 3rem; }
+
+    /* ── PROBLEM CARDS ── */
+    .problem-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 1.5rem;
+    }
+    .problem-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem;
+      position: relative; overflow: hidden;
+    }
+    .problem-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--sol-purple), transparent);
+    }
+    .problem-icon { font-size: 1.75rem; margin-bottom: 1rem; }
+    .problem-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
+    .problem-card p { color: var(--muted); font-size: .875rem; line-height: 1.7; }
+
+    /* ── HOW IT WORKS: FLOW DIAGRAM ── */
+    .flow-container {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 3rem 2rem;
+      overflow: hidden;
+    }
+    .flow-steps {
+      display: flex; align-items: flex-start; justify-content: center;
+      gap: 0; flex-wrap: wrap;
+    }
+    .flow-step {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; flex: 1; min-width: 130px; max-width: 180px;
+      padding: .5rem;
+      position: relative;
+    }
+    .flow-node {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+      border: 2px solid var(--border);
+      background: var(--bg3);
+      margin-bottom: .75rem;
+      position: relative;
+      transition: all .3s;
+    }
+    .flow-step.active .flow-node {
+      border-color: var(--sol-green);
+      box-shadow: 0 0 20px rgba(20,241,149,.3);
+    }
+    .flow-step.error .flow-node {
+      border-color: #ff4444;
+      box-shadow: 0 0 20px rgba(255,68,68,.3);
+    }
+    .flow-step.retry .flow-node {
+      border-color: var(--sol-purple);
+      box-shadow: 0 0 20px rgba(153,69,255,.3);
+    }
+    .flow-label { font-size: .8rem; font-weight: 600; margin-bottom: .25rem; }
+    .flow-desc { font-size: .72rem; color: var(--muted); line-height: 1.4; }
+    .flow-arrow {
+      align-self: center; font-size: 1.2rem; color: var(--muted);
+      padding: 0 .25rem; margin-bottom: 2.5rem;
+      flex-shrink: 0;
+    }
+
+    /* Animation */
+    .flow-step { opacity: 0; transform: translateY(10px); }
+    .flow-step.visible { animation: fadeUp .4s ease forwards; }
+    .flow-arrow { opacity: 0; }
+    .flow-arrow.visible { animation: fadeUp .3s ease forwards; }
+    @keyframes fadeUp { to { opacity:1; transform:none; } }
+
+    /* ── RETRY VISUALIZER ── */
+    .retry-demo {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-top: 2rem;
+      font-family: var(--font-mono);
+      font-size: .82rem;
+    }
+    .retry-demo-header {
+      color: var(--muted); margin-bottom: 1rem; font-size: .75rem; letter-spacing: .08em;
+    }
+    .log-line { display: flex; gap: .75rem; margin-bottom: .35rem; align-items: baseline; }
+    .log-time { color: var(--muted); flex-shrink: 0; font-size: .7rem; }
+    .log-level-debug { color: #6699cc; }
+    .log-level-info  { color: var(--sol-green); }
+    .log-level-warn  { color: #ffaa44; }
+    .log-level-error { color: #ff5566; }
+    .log-msg { color: var(--text); }
+    .log-key { color: var(--sol-blue); }
+    .log-val { color: var(--sol-green); }
+    .cursor { animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── FEATURES GRID ── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap: 1.5rem;
+    }
+    .feature-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.75rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover { border-color: var(--sol-purple); transform: translateY(-3px); }
+    .feature-icon {
+      width: 42px; height: 42px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; margin-bottom: 1rem;
+      background: rgba(153,69,255,0.12);
+      border: 1px solid rgba(153,69,255,0.2);
+    }
+    .feature-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: .5rem; }
+    .feature-card p { color: var(--muted); font-size: .85rem; line-height: 1.7; }
+
+    /* ── CODE BLOCK ── */
+    .code-tabs { display: flex; gap: 0; margin-bottom: 0; }
+    .code-tab {
+      padding: .6rem 1.25rem;
+      font-size: .8rem; font-family: var(--font-mono);
+      cursor: pointer; border: 1px solid var(--border);
+      background: var(--bg3); color: var(--muted);
+      border-radius: 8px 8px 0 0;
+      margin-right: 2px;
+      transition: all .2s;
+    }
+    .code-tab.active { background: var(--bg2); color: var(--sol-green); border-bottom-color: var(--bg2); }
+    .code-panel { display: none; }
+    .code-panel.active { display: block; }
+    pre {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 0 8px 8px 8px;
+      padding: 1.75rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      line-height: 1.7;
+    }
+    .kw { color: var(--sol-purple); }
+    .fn { color: var(--sol-blue); }
+    .st { color: var(--sol-green); }
+    .cm { color: #556677; }
+    .ty { color: #ffcc66; }
+    .nm { color: #e8e8f0; }
+
+    /* ── BACKOFF CHART ── */
+    .backoff-chart {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 2rem;
+      margin-top: 1.5rem;
+    }
+    .chart-title { font-size: .85rem; font-weight: 600; margin-bottom: 1.5rem; color: var(--muted); }
+    .bars { display: flex; align-items: flex-end; gap: 8px; height: 120px; }
+    .bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+    .bar {
+      width: 100%; border-radius: 4px 4px 0 0;
+      background: linear-gradient(180deg, var(--sol-purple), var(--sol-blue));
+      transition: height .6s ease;
+      min-height: 4px;
+    }
+    .bar-label { font-size: .68rem; color: var(--muted); font-family: var(--font-mono); }
+    .bar-val { font-size: .7rem; color: var(--sol-green); font-family: var(--font-mono); }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 1.5rem;
+      margin: 3rem 0;
+    }
+    .stat-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem; text-align: center;
+    }
+    .stat-value {
+      font-size: 2.2rem; font-weight: 800; font-family: var(--font-mono);
+      background: linear-gradient(135deg, var(--sol-purple), var(--sol-green));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-label { color: var(--muted); font-size: .8rem; margin-top: .25rem; }
+
+    /* ── INSTALL ── */
+    .install-box {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+    }
+    .install-cmd {
+      font-family: var(--font-mono); font-size: .9rem;
+      color: var(--sol-green);
+    }
+    .copy-btn {
+      padding: .4rem .9rem; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg3);
+      color: var(--muted); font-size: .75rem; cursor: pointer;
+      transition: all .2s;
+    }
+    .copy-btn:hover { border-color: var(--sol-green); color: var(--sol-green); }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+    footer a { color: var(--sol-purple); text-decoration: none; }
+    footer a:hover { color: var(--sol-green); }
+
+    /* ── DIVIDER ── */
+    .full-divider { border: none; border-top: 1px solid var(--border); }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width:600px) {
+      .flow-arrow { display: none; }
+      nav { padding: 1rem; }
+      .nav-links { gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav>
+  <div class="nav-logo">solana-tx-retry</div>
+  <div class="nav-links">
+    <a href="#how-it-works">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#usage">Usage</a>
+    <a href="#install">Install</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-glow"></div>
+
+  <div class="hero-badge">
+    <span></span> Live on Solana Devnet
+  </div>
+
+  <h1>
+    Never lose a<br/>
+    <span class="grad">Solana transaction</span><br/>
+    again.
+  </h1>
+
+  <p class="hero-sub">
+    Production-ready retry engine for Solana. Adaptive backoff, automatic blockhash
+    refresh, and leader-aware routing — in Rust & TypeScript.
+  </p>
+
+  <div class="hero-buttons">
+    <a href="#usage" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      Quick Start
+    </a>
+    <a href="#how-it-works" class="btn btn-outline">See how it works →</a>
+  </div>
+
+  <!-- Live TX from our devnet run -->
+  <div class="live-tx">
+    <div class="live-tx-label">✓ Just confirmed on devnet</div>
+    <div class="live-tx-sig">
+      <a href="https://explorer.solana.com/tx/2C9YHLa7KgFybLWoBm3wSJPBy9FVkLs1uPBZEiHp6K7Le7qjRJbzXs57MEEFPfzMYpWvukxhQuqrAXbGDJs5DKq1?cluster=devnet"
+         target="_blank" rel="noopener">
+        2C9YHLa7KgFybLWoBm3wSJPBy9FVkLs1uPBZEiHp6K7Le7qjRJbzXs57MEEFPfzMYpWvukxhQuqrAXbGDJs5DKq1
+      </a>
+    </div>
+    <div class="live-tx-stats">
+      <div class="live-stat"><span class="lv">1</span> <span class="lk">attempt</span></div>
+      <div class="live-stat"><span class="lv">~900ms</span> <span class="lk">to confirmation</span></div>
+      <div class="live-stat"><span class="lv">0.01 SOL</span> <span class="lk">transferred</span></div>
+      <div class="live-stat"><span class="lv">confirmed</span> <span class="lk">commitment</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS ROW -->
+<section>
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value">432k</div>
+      <div class="stat-label">Slots mapped per epoch</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">14/14</div>
+      <div class="stat-label">Unit tests passing</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">±20%</div>
+      <div class="stat-label">Jitter on backoff delays</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">400ms</div>
+      <div class="stat-label">Base delay (1 Solana slot)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">Rust + TS</div>
+      <div class="stat-label">Core & wrapper languages</div>
+    </div>
+  </div>
+</section>
+
+<hr class="full-divider" />
+
+<!-- PROBLEM -->
+<section>
+  <div class="section-label">The Problem</div>
+  <h2>Why transactions get dropped</h2>
+  <p class="section-sub">
+    Solana's high throughput is a double-edged sword. When the network is busy,
+    even well-formed transactions regularly disappear into the void.
+  </p>
+
+  <div class="problem-grid">
+    <div class="problem-card">
+      <div class="problem-icon">🌊</div>
+      <h3>Network congestion</h3>
+      <p>Leaders receive more transactions than they can fit in a block.
+         Yours gets silently dropped — no error, no receipt, just silence.</p>
+    </div>
+    <div class="problem-card">
+      <div class="problem-icon">⏳</div>
+      <h3>Blockhash expiry</h3>
+      <p>Every transaction carries a blockhash that expires after ~150 slots (~60s).
+         Slow confirmation means your tx becomes invalid before it lands.</p>
+    </div>
+    <div class="problem-card">
+      <div class="problem-icon">🔄</div>
+      <h3>Leader rotation</h3>
+      <p>Solana rotates block producers every 4 slots. Sending to the wrong
+         validator means an extra gossip hop — losing precious milliseconds.</p>
+    </div>
+    <div class="problem-card">
+      <div class="problem-icon">🎲</div>
+      <h3>Thundering herd</h3>
+      <p>When congestion hits, everyone retries at once. Without jitter,
+         retry storms amplify the problem instead of solving it.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="full-divider" />
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works">
+  <div class="section-label">How it works</div>
+  <h2>Intelligent retry pipeline</h2>
+  <p class="section-sub">
+    Every transaction goes through a multi-stage pipeline that handles each failure
+    mode automatically.
+  </p>
+
+  <div class="flow-container">
+    <div class="flow-steps" id="flowSteps">
+
+      <div class="flow-step active" style="animation-delay:.1s">
+        <div class="flow-node">📝</div>
+        <div class="flow-label">Build tx</div>
+        <div class="flow-desc">Fetch latest blockhash, sign transaction</div>
+      </div>
+
+      <div class="flow-arrow" style="animation-delay:.15s">→</div>
+
+      <div class="flow-step active" style="animation-delay:.2s">
+        <div class="flow-node">🔍</div>
+        <div class="flow-label">Preflight</div>
+        <div class="flow-desc">Simulate once, cache result by message bytes</div>
+      </div>
+
+      <div class="flow-arrow" style="animation-delay:.25s">→</div>
+
+      <div class="flow-step active" style="animation-delay:.3s">
+        <div class="flow-node">🗺️</div>
+        <div class="flow-label">Leader lookup</div>
+        <div class="flow-desc">Find upcoming leader's TPU address</div>
+      </div>
+
+      <div class="flow-arrow" style="animation-delay:.35s">→</div>
+
+      <div class="flow-step active" style="animation-delay:.4s">
+        <div class="flow-node">🚀</div>
+        <div class="flow-label">Send</div>
+        <div class="flow-desc">Submit raw tx, maxRetries=0 (we own retries)</div>
+      </div>
+
+      <div class="flow-arrow" style="animation-delay:.45s">→</div>
+
+      <div class="flow-step active" style="animation-delay:.5s">
+        <div class="flow-node">👁️</div>
+        <div class="flow-label">Monitor</div>
+        <div class="flow-desc">Poll status, track blockheight expiry</div>
+      </div>
+
+      <div class="flow-arrow" style="animation-delay:.55s">→</div>
+
+      <div class="flow-step retry" style="animation-delay:.6s">
+        <div class="flow-node">⏱️</div>
+        <div class="flow-label">Backoff</div>
+        <div class="flow-desc">Exp. delay + ±20% jitter. Refresh blockhash if expired.</div>
+      </div>
+
+      <div class="flow-arrow" style="animation-delay:.65s">→</div>
+
+      <div class="flow-step active" style="animation-delay:.7s">
+        <div class="flow-node">✅</div>
+        <div class="flow-label">Confirmed</div>
+        <div class="flow-desc">Return signature + stats on success</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Simulated log output -->
+  <div class="retry-demo">
+    <div class="retry-demo-header">// SIMULATED OUTPUT — solana-tx-retry in action</div>
+    <div id="logOutput"></div>
+    <div class="log-line"><span class="log-time"></span><span class="cursor">▋</span></div>
+  </div>
+
+  <!-- Backoff chart -->
+  <div class="backoff-chart">
+    <div class="chart-title">Exponential backoff with jitter — delay per attempt (ms)</div>
+    <div class="bars" id="backoffBars"></div>
+  </div>
+</section>
+
+<hr class="full-divider" />
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-label">Features</div>
+  <h2>Everything you need</h2>
+  <p class="section-sub">Built for production Solana applications. Zero config to get started, fully tunable for power users.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🔁</div>
+      <h3>Adaptive retry loop</h3>
+      <p>Configurable max retries with exponential backoff. The engine owns the retry cycle — no double-counting from the RPC layer.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <h3>Blockhash auto-refresh</h3>
+      <p>Detects <code style="color:var(--sol-blue)">TransactionExpiredBlockheightExceeded</code> and automatically fetches a fresh blockhash and re-signs. Refresh attempts don't count against your retry budget.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🗺️</div>
+      <h3>Leader schedule tracking</h3>
+      <p>Fetches the full epoch leader schedule (432k slots) and maintains a live TPU address map. Route transactions directly to the upcoming leader.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💾</div>
+      <h3>Preflight cache</h3>
+      <p>Simulation results are cached by transaction message bytes (blockhash-independent). Re-signed transactions get instant cache hits, skipping redundant RPC simulation calls.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎲</div>
+      <h3>Jitter to prevent herd</h3>
+      <p>Each backoff delay has ±20% random jitter added. This spreads retry storms across time, reducing amplification during network congestion events.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🛡️</div>
+      <h3>Terminal error detection</h3>
+      <p>On-chain rejections (e.g. insufficient funds, bad signature) are immediately classified as terminal and not retried — no wasted attempts.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>Rich stats output</h3>
+      <p>Every successful send returns attempt count, blockhash refresh count, leader routing flag, and total elapsed time. Instrument your application with zero extra code.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔧</div>
+      <h3>Three built-in presets</h3>
+      <p><strong>default</strong> — balanced. <strong>high_throughput</strong> — max speed, no preflight. <strong>safe</strong> — always simulate, long timeout. One line to switch.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌐</div>
+      <h3>TypeScript wrapper</h3>
+      <p>Drop-in replacement for <code style="color:var(--sol-blue)">sendAndConfirmTransaction</code> from <code style="color:var(--sol-blue)">@solana/web3.js</code>. Same API surface, retry superpowers underneath.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="full-divider" />
+
+<!-- USAGE -->
+<section id="usage">
+  <div class="section-label">Usage</div>
+  <h2>Start in 5 lines</h2>
+  <p class="section-sub">Works with your existing Solana code — no migration required.</p>
+
+  <div class="code-tabs">
+    <div class="code-tab active" onclick="switchTab('rust')">Rust</div>
+    <div class="code-tab" onclick="switchTab('ts')">TypeScript</div>
+    <div class="code-tab" onclick="switchTab('preset')">Presets</div>
+  </div>
+
+  <div class="code-panel active" id="tab-rust">
+<pre><span class="kw">use</span> <span class="nm">solana_tx_retry</span>::{<span class="ty">RetryEngine</span>, <span class="ty">RetryConfig</span>};
+
+<span class="cm">// Create engine with defaults (10 retries, 400ms base delay)</span>
+<span class="kw">let</span> <span class="nm">engine</span> = <span class="ty">RetryEngine</span>::<span class="fn">new</span>(<span class="nm">Arc</span>::<span class="fn">clone</span>(&<span class="nm">rpc</span>), <span class="ty">RetryConfig</span>::<span class="fn">default</span>());
+<span class="nm">engine</span>.<span class="fn">initialize</span>().<span class="kw">await</span>?;   <span class="cm">// fetches leader schedule</span>
+
+<span class="cm">// Build your transaction as usual</span>
+<span class="kw">let</span> <span class="nm">tx</span> = <span class="ty">Transaction</span>::<span class="fn">new_signed_with_payer</span>(&[<span class="nm">ix</span>], ...);
+
+<span class="cm">// Send — engine handles retries, blockhash refresh, backoff</span>
+<span class="kw">let</span> <span class="nm">stats</span> = <span class="nm">engine</span>.<span class="fn">send_with_retry</span>(<span class="nm">tx</span>, &<span class="nm">payer</span>).<span class="kw">await</span>?;
+
+<span class="fn">println!</span>(<span class="st">"✓ {} (attempts: {})"</span>, <span class="nm">stats</span>.<span class="nm">signature</span>, <span class="nm">stats</span>.<span class="nm">attempts</span>);</pre>
+  </div>
+
+  <div class="code-panel" id="tab-ts">
+<pre><span class="kw">import</span> { <span class="ty">sendWithRetry</span> } <span class="kw">from</span> <span class="st">'solana-tx-retry'</span>;
+
+<span class="cm">// Drop-in for sendAndConfirmTransaction</span>
+<span class="kw">const</span> <span class="nm">stats</span> = <span class="kw">await</span> <span class="fn">sendWithRetry</span>(
+  <span class="nm">connection</span>,
+  <span class="nm">transaction</span>,
+  [<span class="nm">payer</span>],
+  { <span class="nm">maxRetries</span>: <span class="st">10</span>, <span class="nm">commitment</span>: <span class="st">'confirmed'</span> }
+);
+
+<span class="nm">console</span>.<span class="fn">log</span>(<span class="st">`✓ </span>${<span class="nm">stats</span>.<span class="nm">signature</span>}<span class="st"> — </span>${<span class="nm">stats</span>.<span class="nm">attempts</span>}<span class="st"> attempt(s)`</span>);</pre>
+  </div>
+
+  <div class="code-panel" id="tab-preset">
+<pre><span class="kw">use</span> <span class="nm">solana_tx_retry</span>::<span class="ty">RetryConfig</span>;
+
+<span class="cm">// ── Balanced (default) ─────────────────────────────────</span>
+<span class="kw">let</span> <span class="nm">config</span> = <span class="ty">RetryConfig</span>::<span class="fn">default</span>();
+<span class="cm">// max_retries: 10, base_delay: 400ms, preflight: true</span>
+
+<span class="cm">// ── Maximum throughput ─────────────────────────────────</span>
+<span class="kw">let</span> <span class="nm">config</span> = <span class="ty">RetryConfig</span>::<span class="fn">high_throughput</span>();
+<span class="cm">// max_retries: 20, base_delay: 200ms, preflight: false</span>
+
+<span class="cm">// ── Safety first ───────────────────────────────────────</span>
+<span class="kw">let</span> <span class="nm">config</span> = <span class="ty">RetryConfig</span>::<span class="fn">safe</span>();
+<span class="cm">// max_retries: 5, preflight: always, timeout: 60s</span>
+
+<span class="cm">// ── Custom ─────────────────────────────────────────────</span>
+<span class="kw">let</span> <span class="nm">config</span> = <span class="ty">RetryConfig</span> {
+  <span class="nm">max_retries</span>: <span class="st">15</span>,
+  <span class="nm">base_delay</span>: <span class="ty">Duration</span>::<span class="fn">from_millis</span>(<span class="st">300</span>),
+  ..<span class="ty">RetryConfig</span>::<span class="fn">default</span>()
+};</pre>
+  </div>
+</section>
+
+<hr class="full-divider" />
+
+<!-- INSTALL -->
+<section id="install">
+  <div class="section-label">Install</div>
+  <h2>Get started now</h2>
+  <p class="section-sub">Available as a Rust crate (via Cargo) and a TypeScript package (via npm).</p>
+
+  <div style="display:flex;flex-direction:column;gap:1rem;max-width:600px;">
+    <div>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem;">Rust (Cargo.toml)</p>
+      <div class="install-box">
+        <span class="install-cmd">solana-tx-retry = "0.1"</span>
+        <button class="copy-btn" data-copy='solana-tx-retry = "0.1"' onclick="copyData(this)">Copy</button>
+      </div>
+    </div>
+    <div>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem;">TypeScript / Node.js</p>
+      <div class="install-box">
+        <span class="install-cmd">npm install solana-tx-retry @solana/web3.js</span>
+        <button class="copy-btn" onclick="copy(this,'npm install solana-tx-retry @solana/web3.js')">Copy</button>
+      </div>
+    </div>
+    <div>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem;">Run devnet example</p>
+      <div class="install-box">
+        <span class="install-cmd">cargo run --example basic_transfer</span>
+        <button class="copy-btn" onclick="copy(this,'cargo run --example basic_transfer')">Copy</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>
+    <strong style="color:var(--text)">solana-tx-retry</strong> v0.1.0 &nbsp;·&nbsp;
+    MIT License &nbsp;·&nbsp;
+    Built with Rust + TypeScript &nbsp;·&nbsp;
+    Tested on <a href="https://explorer.solana.com/tx/2C9YHLa7KgFybLWoBm3wSJPBy9FVkLs1uPBZEiHp6K7Le7qjRJbzXs57MEEFPfzMYpWvukxhQuqrAXbGDJs5DKq1?cluster=devnet" target="_blank">Solana Devnet</a>
+  </p>
+</footer>
+
+<script>
+  // ── Tab switcher ──────────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.code-tab').forEach((t, i) => {
+      const tabs = ['rust','ts','preset'];
+      t.classList.toggle('active', tabs[i] === name);
+    });
+    document.querySelectorAll('.code-panel').forEach(p => {
+      p.classList.toggle('active', p.id === 'tab-' + name);
+    });
+  }
+
+  // ── Copy to clipboard ─────────────────────────────────────────────────────
+  function copy(btn, text) {
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = 'var(--sol-green)';
+      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+    });
+  }
+  function copyData(btn) {
+    copy(btn, btn.dataset.copy);
+  }
+
+  // ── Backoff bars ──────────────────────────────────────────────────────────
+  const delays = [400, 800, 1600, 3200, 5000, 5000, 5000];
+  const labels = ['1','2','3','4','5','6','7'];
+  const maxDelay = 5000;
+  const barsEl = document.getElementById('backoffBars');
+
+  delays.forEach((d, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'bar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.height = '0';
+    const val = document.createElement('div');
+    val.className = 'bar-val';
+    val.textContent = d >= 1000 ? (d/1000).toFixed(1)+'s' : d+'ms';
+    const lbl = document.createElement('div');
+    lbl.className = 'bar-label';
+    lbl.textContent = '#' + labels[i];
+    wrap.appendChild(val);
+    wrap.appendChild(bar);
+    wrap.appendChild(lbl);
+    barsEl.appendChild(wrap);
+
+    // Animate after a short delay
+    setTimeout(() => {
+      bar.style.height = Math.round((d / maxDelay) * 110) + 'px';
+    }, 300 + i * 120);
+  });
+
+  // ── Flow step entrance animation ──────────────────────────────────────────
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        document.querySelectorAll('.flow-step,.flow-arrow').forEach((el, i) => {
+          setTimeout(() => el.classList.add('visible'), i * 80);
+        });
+        obs.disconnect();
+      }
+    });
+  }, { threshold: 0.3 });
+  obs.observe(document.getElementById('flowSteps'));
+
+  // ── Animated log output ───────────────────────────────────────────────────
+  const logs = [
+    { t:'02:11:54.960', l:'DEBUG', m:'Refreshing leader schedule from RPC...' },
+    { t:'02:11:56.216', l:'INFO',  m:'Leader schedule refreshed: <span class="log-val">432000</span> slots mapped' },
+    { t:'02:11:56.216', l:'DEBUG', m:'Refreshing cluster node TPU map...' },
+    { t:'02:11:56.299', l:'INFO',  m:'LeaderTracker initialized successfully' },
+    { t:'02:11:56.460', l:'INFO',  m:'Attempt <span class="log-val">1</span>/<span class="log-val">10</span> for tx key <span class="log-key">e47e0394</span>' },
+    { t:'02:11:56.693', l:'INFO',  m:'Tx sent: <span class="log-key">2C9YHLa7KgFy</span>' },
+    { t:'02:11:56.770', l:'DEBUG', m:'Tx <span class="log-key">2C9YHLa7KgFy</span> status: <span style="color:var(--muted)">Pending</span>' },
+    { t:'02:11:57.358', l:'DEBUG', m:'Tx <span class="log-key">2C9YHLa7KgFy</span> status: <span class="log-val">Confirmed</span>' },
+    { t:'02:11:57.358', l:'INFO',  m:'Tx <span class="log-key">2C9YHLa7KgFy</span> confirmed <span class="log-val">✓</span>' },
+  ];
+
+  const out = document.getElementById('logOutput');
+  let idx = 0;
+
+  function appendLog() {
+    if (idx >= logs.length) {
+      // Restart after pause
+      setTimeout(() => { out.innerHTML = ''; idx = 0; appendLog(); }, 4000);
+      return;
+    }
+    const { t, l, m } = logs[idx++];
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    const lvClass = 'log-level-' + l.toLowerCase();
+    line.innerHTML = `
+      <span class="log-time">${t}</span>
+      <span class="${lvClass}">${l.padEnd(5)}</span>
+      <span class="log-msg">${m}</span>
+    `;
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+    setTimeout(appendLog, 350 + Math.random() * 200);
+  }
+
+  // Start when section scrolls into view
+  const logObs = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting) { appendLog(); logObs.disconnect(); }
+  }, { threshold: 0.4 });
+  logObs.observe(document.querySelector('.retry-demo'));
+</script>
+
+</body>
+</html>

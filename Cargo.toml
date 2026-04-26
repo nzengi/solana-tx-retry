@@ -1,0 +1,48 @@
+[package]
+name = "solana-tx-retry"
+version = "0.1.0"
+edition = "2021"
+description = "Smart transaction retry library for Solana with leader-aware routing and adaptive backoff"
+license = "MIT"
+repository = "https://github.com/your-org/solana-tx-retry"
+keywords = ["solana", "blockchain", "transaction", "retry", "distributed-systems"]
+categories = ["network-programming", "asynchronous"]
+
+[lib]
+name = "solana_tx_retry"
+path = "src/lib.rs"
+
+[[example]]
+name = "basic_transfer"
+path = "examples/basic_transfer.rs"
+
+[dependencies]
+# Solana
+solana-client = "2.1"
+solana-sdk = "2.1"
+solana-rpc-client-api = "2.1"
+solana-transaction-status-client-types = "2.1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Logging & tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Utilities
+dashmap = "6"          # Concurrent HashMap (preflight cache)
+rand = "0.8"           # Jitter hesabı için
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
