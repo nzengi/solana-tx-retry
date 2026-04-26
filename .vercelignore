@@ -1,0 +1,20 @@
+# Rust build artifacts (large — exclude from Vercel upload)
+target/
+
+# Rust source (not needed for static site)
+src/
+tests/
+examples/
+Cargo.toml
+Cargo.lock
+
+# Node
+npm/node_modules/
+npm/dist/
+
+# Git
+.git/
+.github/
+
+# Misc
+.DS_Store
